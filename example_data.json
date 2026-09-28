@@ -1,0 +1,30 @@
+[
+  {
+    "qid": null,
+    "label": "Holland College",
+    "description": "community college of Prince Edward Island",
+    "campuses": [
+      {
+        "qid": null,
+        "label": "Summerside Waterfront Campus",
+        "description": "campus of Holland College",
+        "buildings": [
+          {
+            "qid": null,
+            "label": "Summerside Waterfront Campus Building",
+            "description": "building of Holland College's Summerside Waterfront Campus",
+            "address": {
+              "qid": null,
+              "label": "98 Water Street Summerside, PE",
+              "street_number": "98",
+              "street_name": "Water Street",
+              "postal_code": "C1N 4N6",
+              "municipality": "Summerside",
+              "province": "Prince Edward Island"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
