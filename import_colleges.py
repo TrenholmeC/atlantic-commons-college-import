@@ -19,12 +19,14 @@ Schema discovered from those items:
     Property P18 "street name"              -> string (on address)
     Property P19 "municipality"             -> item   (on address)
     Property P20 "province"                 -> item   (on address)
-    Property P21 "address"                  -> item   (on building, -> address item)
+    Property P21 "address"                  -> item   (on building or campus, -> address item)
     Property P22 "building"                 -> item   (on campus, -> building item)
     Property P23 "has campus"               -> item   (on college, -> campus item)
 
-    Q1036 "college", Q1038 "campus", Q1034 "building", Q1032 "address"
-    are the "instance of" (P1) values for each item type.
+    Q1036 "college", Q1037 "university", Q1038 "campus", Q1034 "building",
+    Q1032 "address" are the "instance of" (P1) values for each item type.
+    A college's top-level "institution_type" field ("college" or
+    "university", default "college") picks between Q1036 and Q1037.
 
 Municipality / province / forward-sortation-area items (e.g. "Summerside",
 "Prince Edward Island", "C1N") are treated as pre-existing reference data:
@@ -80,9 +82,16 @@ PROP_BUILDING = "P22"
 PROP_HAS_CAMPUS = "P23"
 
 TYPE_COLLEGE = "Q1036"
+TYPE_UNIVERSITY = "Q1037"
 TYPE_CAMPUS = "Q1038"
 TYPE_BUILDING = "Q1034"
 TYPE_ADDRESS = "Q1032"
+
+# college-level "institution_type" input field -> instance-of (P1) value
+INSTITUTION_TYPES = {
+    "college": TYPE_COLLEGE,
+    "university": TYPE_UNIVERSITY,
+}
 
 
 class DryRunClient:
@@ -194,8 +203,41 @@ def link(client, parent_qid: str, parent_created: bool, prop: str, child_qid: st
     client.sleep_between_writes()
 
 
+def resolve_institution_type(college_spec: dict) -> str:
+    """Resolve the college-level "institution_type" field ("college"/"university",
+    default "college") to its instance-of (P1) QID."""
+    institution_type = college_spec.get("institution_type", "college")
+    try:
+        return INSTITUTION_TYPES[institution_type]
+    except KeyError:
+        raise SystemExit(
+            f"Unknown institution_type {institution_type!r} for college "
+            f"{college_spec.get('label', college_spec.get('qid'))!r}. "
+            f"Expected one of: {', '.join(sorted(INSTITUTION_TYPES))}."
+        )
+
+
+def process_address(
+    client, cache: dict[str, str], parent_qid: str, parent_created: bool, address_spec: Optional[dict], indent: str
+) -> Optional[dict]:
+    """Create/resolve an address and link it to its parent (campus or building)
+    via PROP_ADDRESS, if a spec was given. Returns the address result dict, or
+    None if the parent has no address."""
+    if not address_spec:
+        return None
+
+    address_qid, address_created = create_address(client, cache, address_spec)
+    print(
+        f"{indent}Address {address_spec.get('label', address_qid)!r}: {address_qid} "
+        f"({'created' if address_created else 'existing'})"
+    )
+    link(client, parent_qid, parent_created, PROP_ADDRESS, address_qid, address_created)
+    return {"qid": address_qid, "created": address_created}
+
+
 def process_college(client, cache: dict[str, str], college_spec: dict) -> dict:
-    college_qid, college_created = create_simple_item(client, college_spec, TYPE_COLLEGE)
+    type_qid = resolve_institution_type(college_spec)
+    college_qid, college_created = create_simple_item(client, college_spec, type_qid)
     print(f"College {college_spec.get('label', college_qid)!r}: {college_qid} ({'created' if college_created else 'existing'})")
 
     result = {"qid": college_qid, "created": college_created, "campuses": []}
@@ -206,6 +248,9 @@ def process_college(client, cache: dict[str, str], college_spec: dict) -> dict:
         link(client, college_qid, college_created, PROP_HAS_CAMPUS, campus_qid, campus_created)
 
         campus_result = {"qid": campus_qid, "created": campus_created, "buildings": []}
+        campus_result["address"] = process_address(
+            client, cache, campus_qid, campus_created, campus_spec.get("address"), indent="    "
+        )
 
         for building_spec in campus_spec.get("buildings", []):
             building_qid, building_created = create_simple_item(client, building_spec, TYPE_BUILDING)
@@ -215,17 +260,10 @@ def process_college(client, cache: dict[str, str], college_spec: dict) -> dict:
             )
             link(client, campus_qid, campus_created, PROP_BUILDING, building_qid, building_created)
 
-            building_result = {"qid": building_qid, "created": building_created, "address": None}
-
-            address_spec = building_spec.get("address")
-            if address_spec:
-                address_qid, address_created = create_address(client, cache, address_spec)
-                print(
-                    f"      Address {address_spec.get('label', address_qid)!r}: {address_qid} "
-                    f"({'created' if address_created else 'existing'})"
-                )
-                link(client, building_qid, building_created, PROP_ADDRESS, address_qid, address_created)
-                building_result["address"] = {"qid": address_qid, "created": address_created}
+            building_result = {"qid": building_qid, "created": building_created}
+            building_result["address"] = process_address(
+                client, cache, building_qid, building_created, building_spec.get("address"), indent="      "
+            )
 
             campus_result["buildings"].append(building_result)
 

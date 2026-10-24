@@ -20,10 +20,10 @@ these four existing example items:
 
 | Property | Label | On item | Value |
 |---|---|---|---|
-| P1  | instance of | college / campus / building / address | `Q1036` college, `Q1038` campus, `Q1034` building, `Q1032` address |
+| P1  | instance of | college / campus / building / address | `Q1036` college, `Q1037` university, `Q1038` campus, `Q1034` building, `Q1032` address |
 | P23 | has campus | college | campus item |
 | P22 | building | campus | building item |
-| P21 | address | building | address item |
+| P21 | address | building / campus | address item |
 | P17 | street number | address | string |
 | P18 | street name | address | string |
 | P16 | postal code | address | string |
@@ -92,11 +92,19 @@ WIKIBASE_PASSWORD=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## Input data
 
-A JSON list of colleges; each college has a list of campuses, each campus a
-list of buildings, each building an optional address. See
+A JSON list of colleges; each college has a list of campuses, each campus an
+optional address and a list of buildings, each building an optional address
+(a campus that only has one address — no separate per-building addresses —
+can put it directly on the campus instead of on a building). See
 `example_data.json` (it reproduces the four existing Q1039-Q1042 items
 verbatim, so only use it with `--dry-run` — running it for real would create
 duplicates of items that already exist).
+
+Each college's top-level `"institution_type"` field selects the "instance
+of" (P1) value used when creating that college item: `"college"` (the
+default, used if the field is omitted) for `Q1036`, or `"university"` for
+`Q1037`. It's ignored when `"qid"` is already set, since the item then
+already exists.
 
 Set any `"qid"` field to an existing QID (e.g. `"Q1042"`) instead of `null`
 to reuse an existing item — e.g. to add a new campus to an existing college,

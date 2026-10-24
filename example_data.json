@@ -3,6 +3,7 @@
     "qid": null,
     "label": "Holland College",
     "description": "community college of Prince Edward Island",
+    "institution_type": "college",
     "campuses": [
       {
         "qid": null,
